@@ -1,0 +1,16 @@
+{
+  // Cloudflare Workers config for the Wardline DASHBOARD (static assets only).
+  // The build command produces web/dist; this Worker serves it.
+  //
+  // NOTE: this deploys the front-end only. The API (Fastify + SQLite + a
+  // long-lived WebSocket) cannot run on Workers — host it separately and point
+  // api.wardline.app at it. The dashboard finds it via VITE_API_URL at build time.
+  "name": "wardline",
+  "compatibility_date": "2025-06-01",
+  "assets": {
+    "directory": "./web/dist",
+    // Serve index.html for any unknown path so deep links and the
+    // ?invite=<token> flow resolve to the app.
+    "not_found_handling": "single-page-application"
+  }
+}
