@@ -325,8 +325,7 @@ Project settings:
 - **Environment variable:** `VITE_API_URL = https://api.wardline.app`
 - Node version comes from `.node-version` (22).
 
-`web/public/_redirects` (SPA fallback) and `web/public/_headers` (security
-headers) are copied into the build automatically. Add `wardline.app` as a custom
+`web/public/_headers` (security headers) is copied into the build automatically; SPA fallback is handled by `not_found_handling` in `wrangler.jsonc`. Add `wardline.app` as a custom
 domain in the Pages project — since DNS is already on Cloudflare, it configures
 itself.
 
