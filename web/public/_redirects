@@ -1,0 +1,3 @@
+# SPA fallback: serve index.html for any path so deep links and the
+# ?invite=<token> flow resolve to the app. Cloudflare Pages reads this file.
+/*    /index.html    200

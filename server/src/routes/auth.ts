@@ -1,0 +1,124 @@
+import type { FastifyInstance } from 'fastify';
+import { db } from '../db.js';
+import { verifyPassword } from '../auth.js';
+import { generateSecret, otpauthUri, verifyTotp } from '../totp.js';
+
+interface ParentRow {
+  id: string;
+  email: string;
+  name: string;
+  plan: string;
+  password_hash: string;
+  totp_secret: string | null;
+  totp_enabled: number;
+}
+
+export async function authRoutes(app: FastifyInstance): Promise<void> {
+  app.post('/auth/login', async (req, reply) => {
+    const { email, password, code } = (req.body ?? {}) as { email?: string; password?: string; code?: string };
+    if (!email || !password) {
+      return reply.code(400).send({ error: 'Email and password are required.' });
+    }
+    const parent = db
+      .prepare(`SELECT id, email, name, plan, password_hash, totp_secret, totp_enabled FROM parents WHERE email = ?`)
+      .get(email.toLowerCase().trim()) as ParentRow | undefined;
+
+    if (!parent || !verifyPassword(password, parent.password_hash)) {
+      return reply.code(401).send({ error: "That email and password don't match." });
+    }
+
+    // Second factor — only enforced for accounts that have enrolled.
+    if (parent.totp_enabled && parent.totp_secret) {
+      if (!code) {
+        return reply.code(401).send({ error: 'Authentication code required.', mfaRequired: true });
+      }
+      if (!verifyTotp(parent.totp_secret, code)) {
+        return reply.code(401).send({ error: 'That authentication code is not valid.', mfaRequired: true });
+      }
+    }
+
+    const token = app.jwt.sign({ parentId: parent.id }, { expiresIn: '7d' });
+    return {
+      token,
+      parent: { id: parent.id, email: parent.email, name: parent.name, plan: parent.plan },
+    };
+  });
+
+  /** Tells the login screen whether to ask for a code, before password entry. */
+  app.post('/auth/mfa-required', async (req) => {
+    const { email } = (req.body ?? {}) as { email?: string };
+    if (!email) return { mfaRequired: false };
+    const row = db
+      .prepare(`SELECT totp_enabled FROM parents WHERE email = ?`)
+      .get(email.toLowerCase().trim()) as { totp_enabled: number } | undefined;
+    return { mfaRequired: !!row?.totp_enabled };
+  });
+
+  app.get('/api/me', { preHandler: app.authenticate }, async (req) => {
+    const { parentId, householdId, parentRole } = req;
+    const parent = db
+      .prepare(`SELECT id, email, name, totp_enabled FROM parents WHERE id = ?`)
+      .get(parentId) as { id: string; email: string; name: string; totp_enabled: number } | undefined;
+    const household = db
+      .prepare(`SELECT id, name, plan, settings_json FROM households WHERE id = ?`)
+      .get(householdId) as { id: string; name: string; plan: string; settings_json: string } | undefined;
+    const children = db
+      .prepare(`SELECT id, name, color, screen_limit_min FROM children WHERE household_id = ? ORDER BY rowid`)
+      .all(householdId);
+    return {
+      parent: parent
+        ? {
+            id: parent.id,
+            email: parent.email,
+            name: parent.name,
+            plan: household?.plan ?? 'family',
+            role: parentRole,
+            mfaEnabled: !!parent.totp_enabled,
+          }
+        : null,
+      household: household ? { id: household.id, name: household.name, plan: household.plan } : null,
+      settings: household ? JSON.parse(household.settings_json) : {},
+      children,
+    };
+  });
+
+  // ---- Two-factor enrolment ------------------------------------------------
+
+  /** Start enrolment: mint a secret and return the otpauth URI to scan. */
+  app.post('/api/2fa/setup', { preHandler: app.authenticate }, async (req) => {
+    const parentId = req.parentId;
+    const parent = db.prepare(`SELECT email FROM parents WHERE id = ?`).get(parentId) as { email: string };
+    const secret = generateSecret();
+    // Stored but NOT enabled until a valid code proves the app is configured.
+    db.prepare(`UPDATE parents SET totp_secret = ?, totp_enabled = 0 WHERE id = ?`).run(secret, parentId);
+    return { secret, otpauthUri: otpauthUri(secret, parent.email) };
+  });
+
+  /** Finish enrolment: a valid code proves the authenticator works. */
+  app.post('/api/2fa/enable', { preHandler: app.authenticate }, async (req, reply) => {
+    const parentId = req.parentId;
+    const { code } = (req.body ?? {}) as { code?: string };
+    const row = db.prepare(`SELECT totp_secret FROM parents WHERE id = ?`).get(parentId) as { totp_secret: string | null };
+    if (!row?.totp_secret) return reply.code(400).send({ error: 'Start setup first.' });
+    if (!code || !verifyTotp(row.totp_secret, code)) {
+      return reply.code(400).send({ error: 'That code is not valid. Check your authenticator and try again.' });
+    }
+    db.prepare(`UPDATE parents SET totp_enabled = 1 WHERE id = ?`).run(parentId);
+    return { mfaEnabled: true };
+  });
+
+  /** Turn 2FA off — requires a current code, so a hijacked session can't do it. */
+  app.post('/api/2fa/disable', { preHandler: app.authenticate }, async (req, reply) => {
+    const parentId = req.parentId;
+    const { code } = (req.body ?? {}) as { code?: string };
+    const row = db
+      .prepare(`SELECT totp_secret, totp_enabled FROM parents WHERE id = ?`)
+      .get(parentId) as { totp_secret: string | null; totp_enabled: number };
+    if (!row?.totp_enabled) return { mfaEnabled: false };
+    if (!code || !row.totp_secret || !verifyTotp(row.totp_secret, code)) {
+      return reply.code(400).send({ error: 'A current authentication code is required to turn off 2FA.' });
+    }
+    db.prepare(`UPDATE parents SET totp_enabled = 0, totp_secret = NULL WHERE id = ?`).run(parentId);
+    return { mfaEnabled: false };
+  });
+}

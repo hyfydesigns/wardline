@@ -1,0 +1,36 @@
+{
+  "name": "wardline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Wardline — Windows-only parental monitoring: agent, cloud API, and web dashboard.",
+  "type": "module",
+  "workspaces": [
+    "classifier",
+    "server",
+    "agent-sim",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web,agent -c blue,green,magenta \"npm:dev:server\" \"npm:dev:web\" \"npm:dev:agent\"",
+    "dev:server": "npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "dev:agent": "wait-on tcp:4000 && npm run start -w agent-sim",
+    "server": "npm run dev -w server",
+    "web": "npm run dev -w web",
+    "agent": "npm run start -w agent-sim",
+    "seed": "npm run seed -w server",
+    "test": "node --import tsx --test \"test/**/*.test.ts\"",
+    "package:ext": "node tools/package-extension.mjs",
+    "build:release": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/build-release.ps1",
+    "test:ext": "tsx extension/test/verify-ext.mjs",
+    "test:enforce": "tsx extension/test/verify-enforcement.mjs",
+    "typecheck": "npm run typecheck -w classifier && npm run typecheck -w server && npm run typecheck -w web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "wait-on": "^8.0.1"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

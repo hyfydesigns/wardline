@@ -1,0 +1,20 @@
+node_modules/
+dist/
+build/
+*.log
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+.env.local
+.env.production
+# Local, machine-specific Claude Code settings
+.claude/settings.local.json
+.DS_Store
+# .NET
+agent-win/bin/
+agent-win/obj/
+agent-win/publish/
+# Vite
+web/dist/

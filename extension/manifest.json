@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Wardline Monitor",
+  "version": "1.4.2",
+  "description": "Captures browsing signals for Wardline parental monitoring. Installed and pinned by managed policy on a child's device.",
+  "minimum_chrome_version": "110",
+  "permissions": ["storage", "tabs", "webNavigation", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Wardline Monitor"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["blocked.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "managed_schema": "policy_schema.json"
+}

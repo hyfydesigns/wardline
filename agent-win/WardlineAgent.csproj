@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>WardlineAgent</RootNamespace>
+    <AssemblyName>wardline-agent</AssemblyName>
+    <!-- Windows-only: the agent uses the registry + Windows Service host. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <!-- Never treat a publish output folder as project content: publishing into
+       the project directory would otherwise nest publish\publish\publish\... -->
+  <ItemGroup>
+    <Compile Remove="publish/**" />
+    <Content Remove="publish/**" />
+    <None Remove="publish/**" />
+    <EmbeddedResource Remove="publish/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "properties": {
+    "ApiUrl": {
+      "title": "Ingest API base URL",
+      "description": "Where the extension sends captured signals. Usually the local agent bridge.",
+      "type": "string"
+    },
+    "DeviceToken": {
+      "title": "Device enrolment token",
+      "description": "Per-device bearer token issued when the parent enrolled this PC.",
+      "type": "string"
+    }
+  }
+}
