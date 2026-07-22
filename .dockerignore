@@ -1,0 +1,24 @@
+# Keep the build context small and — critically — keep secrets and local
+# state out of the image.
+.git
+node_modules
+**/node_modules
+dist
+web/dist
+agent-win/bin
+agent-win/obj
+agent-win/publish
+# Secrets & local data — never bake into the image
+.env
+.env.*
+!.env*.example
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.log
+.claude
+# Not needed by the API at runtime
+extension
+installer
+tools

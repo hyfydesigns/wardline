@@ -9,12 +9,15 @@ import { resolveClassifierMode } from '@wardline/classifier';
  * parent session. Set JWT_SECRET (or NODE_ENV=development to acknowledge).
  */
 function assertSecretIsSafe(): void {
-  const isProd = process.env.NODE_ENV === 'production';
-  if (isProd && config.jwtSecret === DEV_JWT_SECRET) {
+  if (process.env.NODE_ENV !== 'production') return;
+  const secret = config.jwtSecret;
+  // Reject the built-in dev key, an empty value, and anything too short to be
+  // a real signing key — any of these would let sessions be forged.
+  if (secret === DEV_JWT_SECRET || secret.length < 16) {
     // eslint-disable-next-line no-console
     console.error(
-      'FATAL: JWT_SECRET is still the development default while NODE_ENV=production.\n' +
-        '       Set a strong JWT_SECRET before starting the server.',
+      'FATAL: JWT_SECRET must be set to a strong random value (at least 16 characters)\n' +
+        '       when NODE_ENV=production. Set it before starting the server.',
     );
     process.exit(1);
   }

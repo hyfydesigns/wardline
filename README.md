@@ -341,6 +341,39 @@ No Git repo yet? Build locally and drag `web/dist` into the Pages dashboard, or
    `JWT_SECRET` and `NODE_ENV=production`. Auth uses a bearer token (not cookies),
    so there are no cross-site cookie issues to configure.
 
+### API → Railway
+
+The repo ships a [`Dockerfile`](Dockerfile) and [`railway.json`](railway.json),
+so Railway builds and runs the server deterministically (health-checked at
+`/health`).
+
+1. **New Project → Deploy from GitHub repo →** `hyfydesigns/wardline`. Railway
+   detects the Dockerfile.
+2. **Add a Volume** (service → Variables/Settings → Volumes) mounted at **`/data`**
+   — this is where the SQLite database lives so it survives restarts.
+3. **Set service variables** (see [`server/.env.production.example`](server/.env.production.example)):
+   - `NODE_ENV=production`
+   - `JWT_SECRET=` a long random string (the server refuses to boot without one)
+   - `DB_PATH=/data/wardline.db`
+   - `CORS_ORIGINS=https://wardline.app`
+   - `DEMO_PASSWORD=` a private password for the seeded demo account
+   - `ANTHROPIC_API_KEY=` *(optional — turns on the hybrid AI classifier)*
+   - Leave `PORT` alone; Railway sets it. `HOST=0.0.0.0` is baked into the image.
+4. **Custom domain:** service → Settings → Networking → **Custom Domain** →
+   `api.wardline.app`. Railway shows a CNAME target.
+5. **In Cloudflare DNS**, add a `CNAME` record: `api` → *(the Railway target)*,
+   set to **DNS only (grey cloud)** — Railway terminates TLS itself, and `.app`
+   requires valid HTTPS, which Railway provides. (Proxying it orange-cloud needs
+   Cloudflare SSL mode "Full (strict)"; DNS-only is simpler.)
+
+Once `https://api.wardline.app/health` returns `{"ok":true}`, log into
+`wardline.app` with `renee@family.wardline.app` and your `DEMO_PASSWORD`.
+
+> **Scaling note:** SQLite on a single volume is perfect for one instance. If you
+> ever run multiple API instances, move to Postgres and swap the live-alert
+> broadcast (currently an in-process map) for Redis pub/sub — both are isolated
+> behind small modules (`db.ts`, `realtime.ts`).
+
 ## Households & co-parents
 
 Children, schedules, and settings belong to a **household**, not to one login.

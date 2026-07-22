@@ -11,7 +11,9 @@ export const DEMO_TOKENS = {
 
 export const DEMO_LOGIN = {
   email: 'renee@family.wardline.app',
-  password: 'wardline-demo',
+  // Overridable so a public deployment isn't seeded with the repo's known
+  // password. Set DEMO_PASSWORD in production.
+  password: process.env.DEMO_PASSWORD ?? 'wardline-demo',
 };
 
 function dayStr(offset: number): string {
