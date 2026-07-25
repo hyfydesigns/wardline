@@ -1,7 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db.js';
-import { verifyPassword } from '../auth.js';
+import { hashPassword, verifyPassword } from '../auth.js';
 import { generateSecret, otpauthUri, verifyTotp } from '../totp.js';
+import { DEFAULT_SETTINGS } from '../seed.js';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface ParentRow {
   id: string;
@@ -14,6 +18,75 @@ interface ParentRow {
 }
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
+  /**
+   * Public sign-up: create a brand-new household with its owner and first
+   * child, then sign the owner in. This is the only way to create a household
+   * from scratch (co-parents join an existing one via invite).
+   */
+  app.post('/auth/signup', async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      name?: string;
+      email?: string;
+      password?: string;
+      householdName?: string;
+      childName?: string;
+      childLimitMin?: number;
+    };
+    const name = (body.name ?? '').trim();
+    const email = (body.email ?? '').trim().toLowerCase();
+    const password = body.password ?? '';
+    const childName = (body.childName ?? '').trim();
+
+    if (!name || !EMAIL_RE.test(email) || !childName) {
+      return reply.code(400).send({ error: 'Your name, a valid email, and a child’s name are required.' });
+    }
+    if (password.length < 8) {
+      return reply.code(400).send({ error: 'Choose a password of at least 8 characters.' });
+    }
+    if (db.prepare(`SELECT 1 FROM parents WHERE email = ?`).get(email)) {
+      return reply.code(409).send({ error: 'An account already exists for that email. Try signing in.' });
+    }
+
+    const householdName = (body.householdName ?? '').trim() || `${name}’s household`;
+    const limitMin = Math.min(1440, Math.max(30, Math.round(body.childLimitMin ?? 240)));
+    const now = new Date().toISOString();
+
+    const householdId = `hh_${randomUUID().slice(0, 8)}`;
+    const parentId = `p_${randomUUID().slice(0, 8)}`;
+
+    // Create household → owner → first child + starter schedules atomically.
+    // (node:sqlite has no .transaction() helper, so drive BEGIN/COMMIT directly.)
+    db.exec('BEGIN');
+    try {
+      db.prepare(
+        `INSERT INTO households (id, name, plan, settings_json, created_at) VALUES (?, ?, 'family', ?, ?)`,
+      ).run(householdId, householdName, JSON.stringify(DEFAULT_SETTINGS), now);
+
+      db.prepare(
+        `INSERT INTO parents (id, household_id, role, email, password_hash, name, plan, settings_json, created_at)
+         VALUES (?, ?, 'owner', ?, ?, ?, 'family', '{}', ?)`,
+      ).run(parentId, householdId, email, hashPassword(password), name, now);
+
+      db.prepare(
+        `INSERT INTO children (id, parent_id, household_id, name, color, screen_limit_min) VALUES (?, ?, ?, ?, 'marcus', ?)`,
+      ).run(`c_${randomUUID().slice(0, 8)}`, parentId, householdId, childName, limitMin);
+
+      const sched = db.prepare(
+        `INSERT INTO schedules (id, parent_id, household_id, name, kind, days, start_min, end_min, scope)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'all internet')`,
+      );
+      sched.run(`s_${randomUUID().slice(0, 8)}`, parentId, householdId, 'School hours', 'school', '0,1,2,3,4', 8 * 60, 14 * 60);
+      sched.run(`s_${randomUUID().slice(0, 8)}`, parentId, householdId, 'Bedtime', 'bedtime', '0,1,2,3,4,5,6', 21 * 60, 23 * 60);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+
+    const token = app.jwt.sign({ parentId }, { expiresIn: '7d' });
+    return { token, parent: { id: parentId, email, name, plan: 'family', role: 'owner' } };
+  });
+
   app.post('/auth/login', async (req, reply) => {
     const { email, password, code } = (req.body ?? {}) as { email?: string; password?: string; code?: string };
     if (!email || !password) {

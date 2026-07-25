@@ -5,6 +5,7 @@ interface AuthState {
   parent: Parent | null;
   ready: boolean;
   login: (email: string, password: string, code?: string) => Promise<void>;
+  signup: (input: { name: string; email: string; password: string; householdName?: string; childName: string; childLimitMin?: number }) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
 }
@@ -31,6 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setParent(res.parent);
   }
 
+  async function signup(input: Parameters<AuthState['signup']>[0]) {
+    const res = await api.signup(input);
+    tokenStore.set(res.token);
+    setParent(res.parent);
+  }
+
   function logout() {
     tokenStore.clear();
     setParent(null);
@@ -42,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setParent(res.parent);
   }
 
-  return <AuthContext.Provider value={{ parent, ready, login, logout, refresh }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ parent, ready, login, signup, logout, refresh }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthState {

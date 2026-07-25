@@ -27,7 +27,7 @@ function at(offsetDays: number, hh: number, mm: number): string {
   return d.toISOString();
 }
 
-const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS = {
   filters: { adult: true, gambling: true, social: false, gaming: false, streaming: false },
   safeSearch: true,
   customBlocked: ['omegle.com', '4chan.org'],
@@ -37,6 +37,9 @@ const DEFAULT_SETTINGS = {
 };
 
 export function seedIfEmpty(): void {
+  // Production deployments set WARDLINE_DISABLE_DEMO_SEED so the database starts
+  // empty and real users sign up, instead of landing in the demo household.
+  if (process.env.WARDLINE_DISABLE_DEMO_SEED) return;
   const count = (db.prepare(`SELECT COUNT(*) AS n FROM parents`).get() as { n: number }).n;
   if (count > 0) return;
   seed();

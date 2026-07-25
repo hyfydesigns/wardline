@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
 import { Login } from './views/Login';
+import { Signup } from './views/Signup';
 import { AcceptInvite } from './views/AcceptInvite';
 import { Dashboard } from './Dashboard';
 
@@ -12,6 +13,7 @@ function inviteTokenFromUrl(): string | null {
 function Gate() {
   const { parent, ready, refresh } = useAuth();
   const [invite, setInvite] = useState<string | null>(inviteTokenFromUrl);
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
 
   function clearInvite() {
     // Drop the token from the address bar so a refresh doesn't re-trigger it.
@@ -26,7 +28,10 @@ function Gate() {
     return <AcceptInvite token={invite} onDone={() => { clearInvite(); void refresh().catch(() => {}); }} />;
   }
 
-  return parent ? <Dashboard /> : <Login />;
+  if (parent) return <Dashboard />;
+  return mode === 'signup'
+    ? <Signup onSignIn={() => setMode('login')} />
+    : <Login onCreateAccount={() => setMode('signup')} />;
 }
 
 export default function App() {

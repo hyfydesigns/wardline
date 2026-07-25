@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { Logo, IconLock } from '../components/icons';
 
-export function Login() {
+export function Login({ onCreateAccount }: { onCreateAccount: () => void }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('renee@family.wardline.app');
   const [password, setPassword] = useState('wardline-demo');
@@ -59,7 +59,11 @@ export function Login() {
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-        <p className="login-foot"><a href="#" onClick={(e) => e.preventDefault()}>Forgot password?</a></p>
+        <p className="login-foot">
+          <a href="#" onClick={(e) => e.preventDefault()}>Forgot password?</a>
+          <span style={{ margin: '0 .5rem', color: 'var(--faint)' }}>·</span>
+          <a href="#" onClick={(e) => { e.preventDefault(); onCreateAccount(); }}>Create a household</a>
+        </p>
         <div className="login-note">
           <IconLock />
           <span>Supports authenticator-app two-factor sign-in. Your child's activity data stays encrypted end to end.</span>

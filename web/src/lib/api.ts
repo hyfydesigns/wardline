@@ -125,6 +125,10 @@ export const api = {
     request<{ token: string; parent: Parent }>('/auth/login', {
       method: 'POST', body: JSON.stringify({ email, password, code }),
     }),
+  signup: (input: { name: string; email: string; password: string; householdName?: string; childName: string; childLimitMin?: number }) =>
+    request<{ token: string; parent: Parent }>('/auth/signup', {
+      method: 'POST', body: JSON.stringify(input),
+    }),
   invitePreview: (token: string) => request<InvitePreview>(`/auth/invite/${encodeURIComponent(token)}`),
   acceptInvite: (token: string, name: string, password: string) =>
     request<{ token: string; parent: Parent }>('/auth/accept-invite', {

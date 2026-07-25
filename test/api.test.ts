@@ -85,6 +85,63 @@ describe('health & auth', () => {
   });
 });
 
+describe('public signup', () => {
+  const NEW = { name: 'Dana', email: 'dana@example.com', password: 'a-strong-password', childName: 'Robin', childLimitMin: 180 };
+  let danaToken: string;
+
+  test('creates a household, owner, and first child, and signs in', async () => {
+    const res = await app.inject({ method: 'POST', url: '/auth/signup', payload: NEW });
+    assert.equal(res.statusCode, 200);
+    const body = res.json();
+    danaToken = body.token;
+    assert.ok(danaToken);
+    assert.equal(body.parent.role, 'owner');
+    assert.equal(body.parent.email, NEW.email);
+  });
+
+  test('the new owner is in a fresh household with their child + starter schedules', async () => {
+    const bearer = { authorization: `Bearer ${danaToken}` };
+    const me = (await app.inject({ method: 'GET', url: '/api/me', headers: bearer })).json();
+    assert.equal(me.children.length, 1);
+    assert.equal(me.children[0].name, 'Robin');
+    assert.equal(me.children[0].screen_limit_min, 180);
+    // Distinct from the seeded demo household.
+    assert.notEqual(me.household.id, 'hh_demo');
+
+    const hh = (await app.inject({ method: 'GET', url: '/api/household', headers: bearer })).json();
+    assert.equal(hh.members.length, 1);
+    assert.equal(hh.yourRole, 'owner');
+    const schedules = (await app.inject({ method: 'GET', url: '/api/schedules', headers: bearer })).json();
+    assert.ok(schedules.length >= 1, 'starter schedules created');
+  });
+
+  test('a new owner cannot see the demo household’s children', async () => {
+    const bearer = { authorization: `Bearer ${danaToken}` };
+    const children = (await app.inject({ method: 'GET', url: '/api/children', headers: bearer })).json();
+    assert.equal(children.some((c: { name: string }) => c.name === 'Marcus'), false);
+  });
+
+  test('the new owner can then sign in normally', async () => {
+    const res = await app.inject({ method: 'POST', url: '/auth/login', payload: { email: NEW.email, password: NEW.password } });
+    assert.equal(res.statusCode, 200);
+  });
+
+  test('rejects a duplicate email', async () => {
+    const res = await app.inject({ method: 'POST', url: '/auth/signup', payload: NEW });
+    assert.equal(res.statusCode, 409);
+  });
+
+  test('rejects a weak password and a bad email', async () => {
+    assert.equal((await app.inject({ method: 'POST', url: '/auth/signup', payload: { ...NEW, email: 'x@y.com', password: 'short' } })).statusCode, 400);
+    assert.equal((await app.inject({ method: 'POST', url: '/auth/signup', payload: { ...NEW, email: 'not-an-email' } })).statusCode, 400);
+  });
+
+  test('requires a child name', async () => {
+    const res = await app.inject({ method: 'POST', url: '/auth/signup', payload: { ...NEW, email: 'x2@y.com', childName: '' } });
+    assert.equal(res.statusCode, 400);
+  });
+});
+
 describe('dashboard data', () => {
   test('/api/children returns the expected shape', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/children', headers: auth() });
