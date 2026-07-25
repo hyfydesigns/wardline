@@ -257,8 +257,11 @@ touch your dev server (or your API budget) and don't depend on model output.
 policy logic, password hashing, TOTP (against the RFC 6238 reference vectors),
 and the HTTP surface end-to-end via Fastify's `inject` — auth, dashboard data,
 ingest (alerting, idempotent re-sync, usage clamping, blocked counters), tamper
-state transitions, alert status changes, the policy downlink, and the full 2FA
-enrolment/enforcement flow.
+state transitions, alert status changes, the policy downlink, households and
+co-parent invites, the full 2FA enrolment/enforcement flow, and account
+verification/password-reset (idempotent verify links, resend cooldowns, the
+2FA-can't-be-bypassed-via-reset path, and session invalidation on reset) — all
+against a captured test inbox, no real email involved.
 
 ## Packaging & distribution
 
@@ -356,7 +359,9 @@ so Railway builds and runs the server deterministically (health-checked at
    - `JWT_SECRET=` a long random string (the server refuses to boot without one)
    - `DB_PATH=/data/wardline.db`
    - `CORS_ORIGINS=https://wardline.app`
-   - `DEMO_PASSWORD=` a private password for the seeded demo account
+   - `APP_URL=https://wardline.app` *(used to build links in verification/reset/invite emails)*
+   - `WARDLINE_DISABLE_DEMO_SEED=1` *(recommended — starts empty for real signups instead of seeding the demo household; see [`DEMO_PASSWORD` alternative](server/.env.production.example) if you'd rather keep the demo)*
+   - `RESEND_API_KEY=` *(optional — without it, verification/reset/invite emails are logged to the Railway service logs instead of sent; real users can't self-serve until this is set)*
    - `ANTHROPIC_API_KEY=` *(optional — turns on the hybrid AI classifier)*
    - Leave `PORT` alone; Railway sets it. `HOST=0.0.0.0` is baked into the image.
 4. **Custom domain:** service → Settings → Networking → **Custom Domain** →
@@ -381,9 +386,11 @@ Several parent accounts share it, so both parents see the same alerts, the same
 dashboard, and the same controls — and a live alert fans out to every co-parent
 watching, not just whoever's device reported it.
 
-- **Invite** from **Settings → Household**: enter an email, get a single-use
-  link that expires in 7 days (a real deployment emails it). The invitee lands
-  on `/?invite=<token>`, sets a name and password, and is signed straight in.
+- **Invite** from **Settings → Household**: enter an email, and Wardline emails
+  a single-use link that expires in 7 days (also shown on-screen to copy, as a
+  backup). The invitee lands on `/?invite=<token>`, sets a name and password,
+  and is signed straight in — already marked verified, since receiving the
+  invite at that address is itself proof they own it.
 - **Roles** — the `owner` (whoever created the household) can remove parents;
   co-parents cannot, and the owner can't be removed or remove themselves.
 - **Revocation is immediate.** Membership is re-read from the database on every
@@ -394,6 +401,30 @@ Existing single-parent databases migrate automatically on first boot: each
 parent gets a household, and their children, schedules, and settings move across
 with no data loss.
 
+## Accounts: email verification & password reset
+
+**"Create a household"** on the sign-in screen is a public signup — it creates
+a household, its owner, and a first child, and emails a verification link.
+Verification is informational only (a Settings row + a dismissible dashboard
+banner with a resend button); it doesn't gate any feature.
+
+**"Forgot password?"** always responds the same way whether or not the email
+has an account, so it can't be used to find out who does. The reset link is
+single-use and expires in 1 hour. If the account has 2FA on, a successful reset
+does **not** sign you in — it sends you to a normal sign-in, which still asks
+for a code, so a compromised inbox alone can't skip the authenticator step.
+Resetting also invalidates every session that was live before the reset (the
+server bumps a per-account token version and checks it on every request), so a
+stolen token stops working immediately rather than riding out its 7-day expiry.
+
+Verification, reset, and invite links all go out through the same
+[mailer](server/src/mailer.ts). **Without `RESEND_API_KEY` set, "sending" an
+email logs it to the server console instead** — so the whole flow works
+end-to-end in local dev with no account anywhere; it lights up for real the
+moment a key is configured (get one at [resend.com](https://resend.com) and
+verify a sending domain there before going live). Set `APP_URL` to the
+dashboard's origin so the links in those emails point at the right place.
+
 ## Security
 
 - **Two-factor authentication** — real TOTP (RFC 6238), compatible with any
@@ -402,14 +433,15 @@ with no data loss.
   turning it back off requires a current code (so a hijacked session can't
   silently disable it). Accounts without it enrolled are unaffected.
 - **Passwords** are salted and hashed with scrypt; verification is constant-time.
-- **JWT secret** — the server refuses to start with the built-in dev secret when
-  `NODE_ENV=production`, and warns otherwise. Set `JWT_SECRET` before deploying.
+- **Password reset invalidates existing sessions** — see above. A stolen JWT
+  stops working the instant the legitimate owner resets their password.
+- **JWT secret** — the server refuses to start with the built-in dev secret, an
+  empty value, or anything under 16 characters when `NODE_ENV=production`, and
+  warns otherwise. Set `JWT_SECRET` before deploying.
 - **Device tokens** authenticate the agent/extension separately from parent
   sessions; the ingest and policy endpoints never accept a parent JWT.
 
 ## Notes
 
-- The 2FA code field on login is illustrative; wiring a TOTP/SMS provider is the
-  one auth step left stubbed.
 - SQLite (`server/wardline.db`) is gitignored and recreated/seeded on first boot.
 ```

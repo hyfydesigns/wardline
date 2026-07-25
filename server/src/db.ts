@@ -108,6 +108,28 @@ export function initSchema(): void {
       PRIMARY KEY (child_id, day, category)
     );
 
+    -- Email-ownership proof for signup. A verified account isn't gated from
+    -- anything (see server/src/routes/verification.ts) — it's informational,
+    -- surfaced as a dashboard banner and a Settings row.
+    CREATE TABLE IF NOT EXISTS email_verifications (
+      id          TEXT PRIMARY KEY,
+      parent_id   TEXT NOT NULL REFERENCES parents(id) ON DELETE CASCADE,
+      token       TEXT UNIQUE NOT NULL,
+      created_at  TEXT NOT NULL,
+      expires_at  TEXT NOT NULL,
+      verified_at TEXT
+    );
+
+    -- Single-use, expiring password-reset tokens.
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id         TEXT PRIMARY KEY,
+      parent_id  TEXT NOT NULL REFERENCES parents(id) ON DELETE CASCADE,
+      token      TEXT UNIQUE NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used_at    TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS schedules (
       id        TEXT PRIMARY KEY,
       parent_id TEXT NOT NULL REFERENCES parents(id) ON DELETE CASCADE,
@@ -125,6 +147,16 @@ export function initSchema(): void {
 
   addColumnIfMissing('parents', 'totp_secret', 'TEXT');
   addColumnIfMissing('parents', 'totp_enabled', 'INTEGER NOT NULL DEFAULT 0');
+  // Bumped on password reset so any JWT minted before the reset stops
+  // authenticating, even though the token itself hasn't expired yet.
+  addColumnIfMissing('parents', 'token_version', 'INTEGER NOT NULL DEFAULT 1');
+
+  const justAddedEmailVerified = addColumnIfMissing('parents', 'email_verified', 'INTEGER NOT NULL DEFAULT 0');
+  if (justAddedEmailVerified) {
+    // Grandfather every account that existed before this column shipped —
+    // don't retroactively "unverify" people who already had working accounts.
+    db.exec(`UPDATE parents SET email_verified = 1`);
+  }
 
   migrateToHouseholds();
 }
@@ -164,8 +196,9 @@ function migrateToHouseholds(): void {
  * Tiny forward migration helper — SQLite has no `ADD COLUMN IF NOT EXISTS`, so
  * existing databases get new columns without being wiped.
  */
-function addColumnIfMissing(table: string, column: string, definition: string): void {
+function addColumnIfMissing(table: string, column: string, definition: string): boolean {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-  if (cols.some((c) => c.name === column)) return;
+  if (cols.some((c) => c.name === column)) return false;
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+  return true;
 }

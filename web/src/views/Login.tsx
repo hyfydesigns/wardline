@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { Logo, IconLock } from '../components/icons';
 
-export function Login({ onCreateAccount }: { onCreateAccount: () => void }) {
+export function Login({ onCreateAccount, onForgotPassword }: { onCreateAccount: () => void; onForgotPassword: () => void }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('renee@family.wardline.app');
   const [password, setPassword] = useState('wardline-demo');
@@ -60,7 +60,7 @@ export function Login({ onCreateAccount }: { onCreateAccount: () => void }) {
           </button>
         </form>
         <p className="login-foot">
-          <a href="#" onClick={(e) => e.preventDefault()}>Forgot password?</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); onForgotPassword(); }}>Forgot password?</a>
           <span style={{ margin: '0 .5rem', color: 'var(--faint)' }}>·</span>
           <a href="#" onClick={(e) => { e.preventDefault(); onCreateAccount(); }}>Create a household</a>
         </p>

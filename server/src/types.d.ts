@@ -17,7 +17,9 @@ declare module 'fastify' {
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
-    payload: { parentId: string };
-    user: { parentId: string };
+    // tokenVersion is optional so tokens minted before this field existed
+    // still verify — the authenticate hook only checks it when present.
+    payload: { parentId: string; tokenVersion?: number };
+    user: { parentId: string; tokenVersion?: number };
   }
 }

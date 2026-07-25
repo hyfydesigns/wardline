@@ -4,6 +4,7 @@ import { db } from '../db.js';
 import { hashPassword, verifyPassword } from '../auth.js';
 import { generateSecret, otpauthUri, verifyTotp } from '../totp.js';
 import { DEFAULT_SETTINGS } from '../seed.js';
+import { issueEmailVerification } from './verification.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -15,6 +16,8 @@ interface ParentRow {
   password_hash: string;
   totp_secret: string | null;
   totp_enabled: number;
+  email_verified: number;
+  token_version: number;
 }
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
@@ -83,8 +86,12 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       throw err;
     }
 
-    const token = app.jwt.sign({ parentId }, { expiresIn: '7d' });
-    return { token, parent: { id: parentId, email, name, plan: 'family', role: 'owner' } };
+    // Best-effort: a failed send shouldn't block account creation (the mailer
+    // itself never throws — see server/src/mailer.ts).
+    await issueEmailVerification(parentId, email);
+
+    const token = app.jwt.sign({ parentId, tokenVersion: 1 }, { expiresIn: '7d' });
+    return { token, parent: { id: parentId, email, name, plan: 'family', role: 'owner', emailVerified: false } };
   });
 
   app.post('/auth/login', async (req, reply) => {
@@ -93,7 +100,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'Email and password are required.' });
     }
     const parent = db
-      .prepare(`SELECT id, email, name, plan, password_hash, totp_secret, totp_enabled FROM parents WHERE email = ?`)
+      .prepare(`SELECT id, email, name, plan, password_hash, totp_secret, totp_enabled, email_verified, token_version FROM parents WHERE email = ?`)
       .get(email.toLowerCase().trim()) as ParentRow | undefined;
 
     if (!parent || !verifyPassword(password, parent.password_hash)) {
@@ -110,10 +117,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
-    const token = app.jwt.sign({ parentId: parent.id }, { expiresIn: '7d' });
+    const token = app.jwt.sign({ parentId: parent.id, tokenVersion: parent.token_version }, { expiresIn: '7d' });
     return {
       token,
-      parent: { id: parent.id, email: parent.email, name: parent.name, plan: parent.plan },
+      parent: {
+        id: parent.id,
+        email: parent.email,
+        name: parent.name,
+        plan: parent.plan,
+        mfaEnabled: !!parent.totp_enabled,
+        emailVerified: !!parent.email_verified,
+      },
     };
   });
 
@@ -130,8 +144,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/me', { preHandler: app.authenticate }, async (req) => {
     const { parentId, householdId, parentRole } = req;
     const parent = db
-      .prepare(`SELECT id, email, name, totp_enabled FROM parents WHERE id = ?`)
-      .get(parentId) as { id: string; email: string; name: string; totp_enabled: number } | undefined;
+      .prepare(`SELECT id, email, name, totp_enabled, email_verified FROM parents WHERE id = ?`)
+      .get(parentId) as { id: string; email: string; name: string; totp_enabled: number; email_verified: number } | undefined;
     const household = db
       .prepare(`SELECT id, name, plan, settings_json FROM households WHERE id = ?`)
       .get(householdId) as { id: string; name: string; plan: string; settings_json: string } | undefined;
@@ -147,6 +161,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             plan: household?.plan ?? 'family',
             role: parentRole,
             mfaEnabled: !!parent.totp_enabled,
+            emailVerified: !!parent.email_verified,
           }
         : null,
       household: household ? { id: household.id, name: household.name, plan: household.plan } : null,

@@ -10,6 +10,7 @@ import { apiRoutes } from './routes/api.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { policyRoutes } from './routes/policy.js';
 import { householdRoutes } from './routes/household.js';
+import { verificationRoutes } from './routes/verification.js';
 import { addConnection } from './realtime.js';
 
 export interface BuildOptions {
@@ -39,12 +40,20 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
   app.decorate('authenticate', async (req, reply) => {
     try {
       await req.jwtVerify();
-      const parentId = (req.user as { parentId: string }).parentId;
+      const { parentId, tokenVersion } = req.user as { parentId: string; tokenVersion?: number };
       const row = db
-        .prepare(`SELECT household_id AS householdId, role FROM parents WHERE id = ?`)
-        .get(parentId) as { householdId: string | null; role: string } | undefined;
+        .prepare(`SELECT household_id AS householdId, role, token_version AS tokenVersion FROM parents WHERE id = ?`)
+        .get(parentId) as { householdId: string | null; role: string; tokenVersion: number } | undefined;
       if (!row?.householdId) {
         reply.code(401).send({ error: 'This account no longer has access.' });
+        return;
+      }
+      // A password reset bumps token_version, so a token issued before the
+      // reset stops authenticating immediately — it doesn't just wait out its
+      // 7-day expiry. Tokens minted before this field existed carry no
+      // tokenVersion claim and are left alone (backward compatible).
+      if (tokenVersion !== undefined && tokenVersion !== row.tokenVersion) {
+        reply.code(401).send({ error: 'Your session has expired. Please sign in again.' });
         return;
       }
       req.parentId = parentId;
@@ -62,6 +71,7 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
   await app.register(ingestRoutes);
   await app.register(policyRoutes);
   await app.register(householdRoutes);
+  await app.register(verificationRoutes);
 
   // Live alert stream. Token passed as a query param since browsers can't set
   // headers on a WebSocket handshake.
@@ -69,18 +79,25 @@ export async function buildServer(opts: BuildOptions = {}): Promise<FastifyInsta
     scoped.get('/ws', { websocket: true }, (socket, req) => {
       const token = (req.query as { token?: string }).token ?? '';
       let parentId: string;
+      let tokenVersion: number | undefined;
       try {
-        parentId = scoped.jwt.verify<{ parentId: string }>(token).parentId;
+        const payload = scoped.jwt.verify<{ parentId: string; tokenVersion?: number }>(token);
+        parentId = payload.parentId;
+        tokenVersion = payload.tokenVersion;
       } catch {
         socket.close(1008, 'Invalid token');
         return;
       }
       // Subscribe by household, so every co-parent gets the same live alerts.
-      const row = db.prepare(`SELECT household_id AS householdId FROM parents WHERE id = ?`).get(parentId) as
-        | { householdId: string | null }
+      const row = db.prepare(`SELECT household_id AS householdId, token_version AS tokenVersion FROM parents WHERE id = ?`).get(parentId) as
+        | { householdId: string | null; tokenVersion: number }
         | undefined;
       if (!row?.householdId) {
         socket.close(1008, 'No household');
+        return;
+      }
+      if (tokenVersion !== undefined && tokenVersion !== row.tokenVersion) {
+        socket.close(1008, 'Session expired');
         return;
       }
       addConnection(row.householdId, socket);

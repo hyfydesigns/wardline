@@ -19,4 +19,6 @@ export const config = {
    * deployments (comma-separated).
    */
   corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173,https://wardline.app').split(','),
+  /** Where the dashboard lives — used to build links in verification/reset/invite emails. */
+  appUrl: (process.env.APP_URL ?? 'http://localhost:5173').replace(/\/+$/, ''),
 };

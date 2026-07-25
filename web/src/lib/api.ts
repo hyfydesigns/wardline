@@ -6,7 +6,7 @@ import { apiUrl } from './config';
 export type Severity = 'critical' | 'concerning' | 'informational';
 export type AlertStatus = 'open' | 'reviewed' | 'dismissed' | 'false_positive';
 
-export interface Parent { id: string; email: string; name: string; plan: string; mfaEnabled?: boolean; role?: string; }
+export interface Parent { id: string; email: string; name: string; plan: string; mfaEnabled?: boolean; role?: string; emailVerified?: boolean; }
 
 export interface HouseholdMember {
   id: string; name: string; email: string; role: string;
@@ -129,6 +129,14 @@ export const api = {
     request<{ token: string; parent: Parent }>('/auth/signup', {
       method: 'POST', body: JSON.stringify(input),
     }),
+  forgotPassword: (email: string) =>
+    request<{ message: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token: string, password: string) =>
+    request<{ token?: string; parent?: Parent; requiresLogin?: boolean; email?: string }>('/auth/reset-password', {
+      method: 'POST', body: JSON.stringify({ token, password }),
+    }),
+  verifyEmail: (token: string) => request<{ verified: true }>('/auth/verify', { method: 'POST', body: JSON.stringify({ token }) }),
+  resendVerification: () => request<{ ok: true; alreadyVerified?: boolean }>('/api/verify/resend', { method: 'POST' }),
   invitePreview: (token: string) => request<InvitePreview>(`/auth/invite/${encodeURIComponent(token)}`),
   acceptInvite: (token: string, name: string, password: string) =>
     request<{ token: string; parent: Parent }>('/auth/accept-invite', {

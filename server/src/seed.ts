@@ -54,8 +54,8 @@ export function seed(): void {
   ).run('hh_demo', "Renee's household", JSON.stringify(DEFAULT_SETTINGS), now);
 
   db.prepare(
-    `INSERT INTO parents (id, household_id, role, email, password_hash, name, plan, settings_json, created_at)
-     VALUES (?, 'hh_demo', 'owner', ?, ?, ?, 'family', '{}', ?)`,
+    `INSERT INTO parents (id, household_id, role, email, password_hash, name, plan, settings_json, created_at, email_verified)
+     VALUES (?, 'hh_demo', 'owner', ?, ?, ?, 'family', '{}', ?, 1)`,
   ).run('p_renee', DEMO_LOGIN.email, hashPassword(DEMO_LOGIN.password), 'Renee', now);
 
   const insChild = db.prepare(

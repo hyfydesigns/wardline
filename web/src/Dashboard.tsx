@@ -105,6 +105,7 @@ export function Dashboard() {
       </aside>
 
       <main className="content">
+        {parent && !parent.emailVerified && <VerifyBanner />}
         <div className="topbar">
           <div>
             <h1>{TITLES[view]}</h1>
@@ -145,4 +146,31 @@ export function Dashboard() {
 
 function today(): string {
   return new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+/** Soft nudge to verify email — informational only, doesn't block anything. */
+function VerifyBanner() {
+  const { refresh } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function resend() {
+    setBusy(true);
+    try {
+      const res = await api.resendVerification();
+      if (res.alreadyVerified) await refresh();
+      else setSent(true);
+    } catch {
+      // Cooldown or a transient error — Settings has the full retry UI.
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="verify-banner">
+      <p>{sent ? 'Verification email sent — check your inbox.' : 'Please verify your email — check your inbox for a confirmation link.'}</p>
+      {!sent && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={resend}>Resend email</button>}
+    </div>
+  );
 }

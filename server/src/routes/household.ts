@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db.js';
 import { hashPassword, newToken } from '../auth.js';
+import { config } from '../config.js';
+import { sendMail } from '../mailer.js';
 
 const INVITE_TTL_DAYS = 7;
 const MAX_MEMBERS = 6;
@@ -47,17 +49,19 @@ export async function householdRoutes(app: FastifyInstance): Promise<void> {
     if (taken) return reply.code(409).send({ error: 'An account already exists for that email.' });
 
     const parentId = `p_${randomUUID().slice(0, 8)}`;
+    // email_verified=1: this invite was sent to (and clicked from) this exact
+    // address, which is the same proof-of-ownership signup verification relies on.
     db.prepare(
-      `INSERT INTO parents (id, household_id, role, email, password_hash, name, plan, settings_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'family', '{}', ?)`,
+      `INSERT INTO parents (id, household_id, role, email, password_hash, name, plan, settings_json, created_at, email_verified)
+       VALUES (?, ?, ?, ?, ?, ?, 'family', '{}', ?, 1)`,
     ).run(parentId, invite.household_id, invite.role, invite.email.toLowerCase(), hashPassword(password), name.trim(), new Date().toISOString());
 
     db.prepare(`UPDATE invitations SET accepted_at = ? WHERE id = ?`).run(new Date().toISOString(), invite.id);
 
-    const jwt = app.jwt.sign({ parentId }, { expiresIn: '7d' });
+    const jwt = app.jwt.sign({ parentId, tokenVersion: 1 }, { expiresIn: '7d' });
     return {
       token: jwt,
-      parent: { id: parentId, email: invite.email.toLowerCase(), name: name.trim(), plan: 'family', role: invite.role },
+      parent: { id: parentId, email: invite.email.toLowerCase(), name: name.trim(), plan: 'family', role: invite.role, emailVerified: true },
     };
   });
 
@@ -120,7 +124,7 @@ export async function householdRoutes(app: FastifyInstance): Promise<void> {
       return { household, members, invitations, yourRole: req.parentRole };
     });
 
-    /** Invite a co-parent. Returns the link to share (a real deployment emails it). */
+    /** Invite a co-parent: emails the invite link and also returns it to share/copy. */
     scoped.post('/api/household/invites', async (req, reply) => {
       const { email } = (req.body ?? {}) as { email?: string };
       const clean = (email ?? '').trim().toLowerCase();
@@ -147,6 +151,15 @@ export async function householdRoutes(app: FastifyInstance): Promise<void> {
         `INSERT INTO invitations (id, household_id, email, token, role, invited_by, created_at, expires_at)
          VALUES (?, ?, ?, ?, 'parent', ?, ?, ?)`,
       ).run(id, req.householdId, clean, token, req.parentId, now.toISOString(), expires.toISOString());
+
+      const inviter = db.prepare(`SELECT name FROM parents WHERE id = ?`).get(req.parentId) as { name: string };
+      const household = db.prepare(`SELECT name FROM households WHERE id = ?`).get(req.householdId) as { name: string };
+      const link = `${config.appUrl}/?invite=${token}`;
+      await sendMail({
+        to: clean,
+        subject: `${inviter.name} invited you to ${household.name} on Wardline`,
+        text: `${inviter.name} invited you to help look after the children in ${household.name} on Wardline.\n\n${link}\n\nThis link works once and expires in ${INVITE_TTL_DAYS} days.`,
+      });
 
       return { id, email: clean, token, expiresAt: expires.toISOString(), invitePath: `/?invite=${token}` };
     });

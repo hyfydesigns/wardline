@@ -94,6 +94,8 @@ export function Settings() {
 
       <HouseholdSection />
 
+      <EmailVerificationSection />
+
       <TwoFactorSection />
 
       <div className="card card-pad">
@@ -218,6 +220,49 @@ function HouseholdSection() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Whether the account's email has been confirmed, with a resend control. */
+function EmailVerificationSection() {
+  const { parent, refresh } = useAuth();
+  const verified = !!parent?.emailVerified;
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function resend() {
+    setBusy(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const res = await api.resendVerification();
+      if (res.alreadyVerified) {
+        setMsg('Already verified.');
+        await refresh();
+      } else {
+        setMsg('Verification email sent — check your inbox.');
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card card-pad">
+      <span className="section-title">Email verification</span>
+      <div className="setting-row">
+        <div className="setting-text">
+          <h4>{parent?.email}</h4>
+          <p>{verified ? 'Verified.' : 'Not verified yet — check your inbox for a confirmation link.'}</p>
+        </div>
+        {!verified && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={resend}>Resend email</button>}
+      </div>
+      {msg && <p className="saved-hint" style={{ marginTop: '.4rem', display: 'block' }}>{msg}</p>}
+      {error && <div className="login-error" style={{ marginTop: '.6rem' }}>{error}</div>}
     </div>
   );
 }

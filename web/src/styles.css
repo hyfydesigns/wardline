@@ -156,6 +156,11 @@ a{ color:var(--primary); }
 .pill-neutral{ background:var(--surface-sunken); color:var(--muted); }
 .pill-good{ background:var(--accent-soft); color:var(--accent); }
 
+/* ---------- account banners ---------- */
+.verify-banner{ display:flex; align-items:center; gap:.85rem; background:var(--status-info-soft); border-bottom:1px solid var(--line); padding:.65rem 2rem; }
+.verify-banner p{ font-size:.83rem; color:var(--ink-soft); margin:0; }
+.verify-banner .btn{ margin-left:auto; flex:none; }
+
 /* ---------- overview ---------- */
 .attention-banner{ display:flex; align-items:flex-start; gap:.85rem; background:var(--status-critical-soft); border:1px solid color-mix(in srgb, var(--status-critical) 35%, transparent); border-radius:var(--radius); padding:1rem 1.15rem; margin-bottom:1.3rem; }
 .attention-banner svg{ width:1.3rem; height:1.3rem; color:var(--status-critical); flex:none; margin-top:.1rem; }
@@ -275,6 +280,7 @@ tr:last-child td{ border-bottom:none; }
 @media (max-width:960px){
   .shell{ flex-direction:column; }
   .sidebar{ width:100%; }
+  .verify-banner{ padding:.65rem 1.1rem; }
   .sb-nav{ flex-direction:row; flex-wrap:wrap; }
   .sb-foot{ display:none; }
   .grid-2{ grid-template-columns:1fr; }
