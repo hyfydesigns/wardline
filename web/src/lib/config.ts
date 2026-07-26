@@ -20,3 +20,10 @@ export function wsUrl(path: string): string {
   const proto = host.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${proto}//${host.host}${path}`;
 }
+
+/**
+ * Always resolves to the WardlineSetup.exe asset on the most recent GitHub
+ * Release (see .github/workflows/release.yml, triggered by pushing a `v*`
+ * tag) — no API call needed, GitHub serves this URL directly.
+ */
+export const INSTALLER_DOWNLOAD_URL = 'https://github.com/hyfydesigns/wardline/releases/latest/download/WardlineSetup.exe';

@@ -1,0 +1,48 @@
+name: Release
+
+# Push a tag like v1.0.0 to build the agent + extension + Windows installer
+# and publish them as a GitHub Release. Nothing runs on ordinary pushes.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build agent, extension, and installer
+        run: npm run build:release
+
+      - name: Verify artifacts exist
+        run: |
+          if (-not (Test-Path 'dist/WardlineSetup.exe')) { throw 'dist/WardlineSetup.exe was not produced' }
+          if (-not (Test-Path 'dist/wardline-extension-v*.zip')) { throw 'extension zip was not produced' }
+        shell: pwsh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/WardlineSetup.exe
+            dist/wardline-extension-v*.zip
+          generate_release_notes: true

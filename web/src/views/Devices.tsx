@@ -3,6 +3,7 @@ import { api, type Child } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import { Avatar } from '../components/ui';
 import { relativeTime } from '../lib/format';
+import { INSTALLER_DOWNLOAD_URL } from '../lib/config';
 
 export function Devices({ children, refreshKey }: { children: Child[]; refreshKey: number }) {
   const [nonce, setNonce] = useState(0);
@@ -100,6 +101,9 @@ function AddDevice({ childrenList, onAdded }: { childrenList: Child[]; onAdded: 
           <p style={{ fontSize: '.85rem', color: 'var(--ink-soft)', marginBottom: '.6rem' }}>
             <strong>{issued.name}</strong> is enrolled. On that PC, download the installer and run it once as
             administrator with this device key — the agent and browser extension configure themselves.
+          </p>
+          <p style={{ marginBottom: '.6rem' }}>
+            <a href={INSTALLER_DOWNLOAD_URL} className="btn btn-primary btn-sm">Download WardlineSetup.exe</a>
           </p>
           <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', background: 'var(--surface-sunken)', padding: '.6rem .7rem', borderRadius: 6 }}>
             <code style={{ flex: 1, fontSize: '.75rem', wordBreak: 'break-all' }}>{installCmd}</code>

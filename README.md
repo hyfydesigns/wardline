@@ -281,11 +281,38 @@ rather than failing, so you always get the artifacts that can be produced:
    — needs Inno Setup 6 (`winget install -e --id JRSoftware.InnoSetup`)
 4. Authenticode signing — pass `-CertThumbprint <sha1>` or `-PfxPath <file>`
 
+### Publishing a release
+
+[`.github/workflows/release.yml`](.github/workflows/release.yml) runs the same
+four steps on a GitHub-hosted `windows-latest` runner and publishes the results
+as a GitHub Release — so a real download link exists without anyone building
+locally. Push a tag to trigger it:
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+The workflow attaches `WardlineSetup.exe` and the extension zip to the release.
+Because the installer asset is always named exactly `WardlineSetup.exe`,
+GitHub's stable "latest release" URL always resolves to the newest build with
+no API call needed:
+
+```
+https://github.com/hyfydesigns/wardline/releases/latest/download/WardlineSetup.exe
+```
+
+The dashboard's Devices screen links to that URL (see `INSTALLER_DOWNLOAD_URL`
+in [`web/src/lib/config.ts`](web/src/lib/config.ts)). The CI build is unsigned
+(no certificate is wired into the workflow), so SmartScreen will still warn
+until a code-signing cert is added to the `Signing` step.
+
 ### Enrolling a PC
 
 1. In the dashboard: **Devices → Add a device**, pick the child, name the PC.
-   Wardline issues a device key and shows the install command.
-2. On the child's PC, run the installer once as administrator:
+   Wardline issues a device key, a **Download WardlineSetup.exe** button (the
+   latest GitHub Release build), and the install command.
+2. On the child's PC, download it and run it once as administrator:
 
    ```
    WardlineSetup.exe /DeviceToken=wl-xxxxxxxx
