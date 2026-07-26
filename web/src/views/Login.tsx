@@ -4,8 +4,8 @@ import { Logo, IconLock } from '../components/icons';
 
 export function Login({ onCreateAccount, onForgotPassword }: { onCreateAccount: () => void; onForgotPassword: () => void }) {
   const { login } = useAuth();
-  const [email, setEmail] = useState('renee@family.wardline.app');
-  const [password, setPassword] = useState('wardline-demo');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [needsCode, setNeedsCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +68,6 @@ export function Login({ onCreateAccount, onForgotPassword }: { onCreateAccount: 
           <IconLock />
           <span>Supports authenticator-app two-factor sign-in. Your child's activity data stays encrypted end to end.</span>
         </div>
-        <div className="demo-hint">Demo login is pre-filled — just press <strong>Sign in</strong>. Turn on 2FA in Settings.</div>
       </div>
     </div>
   );

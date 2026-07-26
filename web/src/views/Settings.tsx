@@ -4,6 +4,7 @@ import { Switch, Segmented } from '../components/ui';
 import { useAuth } from '../lib/auth';
 
 export function Settings() {
+  const { parent } = useAuth();
   const [s, setS] = useState<SettingsT | null>(null);
   const [saved, setSaved] = useState(false);
   const [newSite, setNewSite] = useState('');
@@ -84,7 +85,7 @@ export function Settings() {
             onChange={(v) => patch({ alerts: { ...s.alerts, sensitivity: v } })}
           />
         </Row>
-        <Row title="Email notifications" desc="renee@family.wardline.app">
+        <Row title="Email notifications" desc={parent?.email ?? ''}>
           <Switch checked={s.alerts.email} onChange={(v) => patch({ alerts: { ...s.alerts, email: v } })} />
         </Row>
         <Row title="Push notifications" desc="Sent to any browser where the dashboard is open.">
