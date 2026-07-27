@@ -173,6 +173,8 @@ export const api = {
     request<{ id: string; name: string; childId: string; deviceToken: string }>('/api/devices', {
       method: 'POST', body: JSON.stringify({ childId, name }),
     }),
+  regenerateDeviceKey: (id: string) =>
+    request<{ id: string; name: string; deviceToken: string }>(`/api/devices/${id}/regenerate`, { method: 'POST' }),
   schedules: () => request<Schedule[]>('/api/schedules'),
   getSettings: () => request<Settings>('/api/settings'),
   saveSettings: (patch: Partial<Settings>) => request<Settings>('/api/settings', { method: 'PUT', body: JSON.stringify(patch) }),

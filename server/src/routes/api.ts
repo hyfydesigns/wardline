@@ -218,6 +218,25 @@ export async function apiRoutes(app: FastifyInstance): Promise<void> {
     return { id, name: deviceName, childId, deviceToken };
   });
 
+  /**
+   * Mint a fresh device key for an existing device — the one-time reveal on
+   * creation is easy to miss, and the key is never shown again otherwise.
+   * Invalidates the previous key immediately, so a device already installed
+   * with the old one will need reinstalling/reconfiguring with the new one.
+   */
+  app.post('/api/devices/:id/regenerate', async (req, reply) => {
+    const householdId = req.householdId;
+    const { id } = req.params as { id: string };
+    const device = db
+      .prepare(`SELECT d.id, d.name FROM devices d JOIN children c ON c.id = d.child_id WHERE d.id = ? AND c.household_id = ?`)
+      .get(id, householdId) as { id: string; name: string } | undefined;
+    if (!device) return reply.code(404).send({ error: 'Device not found.' });
+
+    const deviceToken = `wl-${newToken(18)}`;
+    db.prepare(`UPDATE devices SET device_token = ? WHERE id = ?`).run(deviceToken, id);
+    return { id: device.id, name: device.name, deviceToken };
+  });
+
   /** Household schedule blocks. */
   app.get('/api/schedules', async (req) => {
     const householdId = req.householdId;
