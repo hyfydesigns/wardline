@@ -12,6 +12,12 @@ export function Devices({ children, refreshKey }: { children: Child[]; refreshKe
   if (loading) return <p className="loading">Loading devices…</p>;
   return (
     <>
+      <p style={{ marginBottom: '.8rem' }}>
+        <a href={INSTALLER_DOWNLOAD_URL} className="btn btn-ghost btn-sm">Download the Wardline installer</a>
+        <span style={{ color: 'var(--muted)', marginLeft: '.6rem', fontSize: '.85rem' }}>
+          Needs a device key to finish setup — get one with "Add a device" below.
+        </span>
+      </p>
       <div className="tbl-wrap">
         <table>
           <thead>
