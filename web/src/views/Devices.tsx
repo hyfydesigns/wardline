@@ -10,15 +10,19 @@ export function Devices({ children, refreshKey }: { children: Child[]; refreshKe
   const { data, loading } = useAsync(() => api.devices(), [refreshKey, nonce]);
   const [revealed, setRevealed] = useState<{ name: string; deviceToken: string } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [keyError, setKeyError] = useState<string | null>(null);
 
   async function getKey(id: string, name: string, alreadySetUp: boolean) {
     if (alreadySetUp && !window.confirm(`${name} is already reporting in. Getting a new key will stop it working until you reinstall with the new one. Continue?`)) {
       return;
     }
     setBusyId(id);
+    setKeyError(null);
     try {
       const res = await api.regenerateDeviceKey(id);
       setRevealed({ name: res.name, deviceToken: res.deviceToken });
+    } catch (err) {
+      setKeyError((err as Error).message);
     } finally {
       setBusyId(null);
     }
@@ -33,6 +37,7 @@ export function Devices({ children, refreshKey }: { children: Child[]; refreshKe
           Needs a device key to finish setup — get one with "Add a device" below.
         </span>
       </p>
+      {keyError && <div className="login-error" style={{ marginBottom: '.8rem' }}>{keyError}</div>}
       <div className="tbl-wrap">
         <table>
           <thead>

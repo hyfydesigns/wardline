@@ -277,6 +277,8 @@ describe('alerts', () => {
 });
 
 describe('device enrolment', () => {
+  let issuedToken: string;
+
   test('issues a working device token for a child in the household', async () => {
     const children = (await app.inject({ method: 'GET', url: '/api/children', headers: auth() })).json();
     const res = await app.inject({
@@ -286,6 +288,7 @@ describe('device enrolment', () => {
     assert.equal(res.statusCode, 200);
     const { deviceToken } = res.json();
     assert.ok(deviceToken.startsWith('wl-'));
+    issuedToken = deviceToken;
 
     // The freshly minted token must actually work against the device APIs.
     const policy = await app.inject({ method: 'GET', url: '/api/policy', headers: { authorization: `Bearer ${deviceToken}` } });
@@ -319,6 +322,28 @@ describe('device enrolment', () => {
       method: 'POST', url: '/api/devices', headers: auth(), payload: { childId: 'c_not_yours', name: 'Some-PC' },
     });
     assert.equal(unknown.statusCode, 404);
+  });
+
+  test('regenerating replaces the device key, invalidating the old one', async () => {
+    const list = (await app.inject({ method: 'GET', url: '/api/devices', headers: auth() })).json();
+    const entry = list.find((d: { name: string }) => d.name === 'Marcus-Laptop');
+
+    const regen = await app.inject({ method: 'POST', url: `/api/devices/${entry.id}/regenerate`, headers: auth() });
+    assert.equal(regen.statusCode, 200);
+    const { deviceToken } = regen.json();
+    assert.ok(deviceToken.startsWith('wl-'));
+    assert.notEqual(deviceToken, issuedToken);
+
+    const fresh = await app.inject({ method: 'GET', url: '/api/policy', headers: { authorization: `Bearer ${deviceToken}` } });
+    assert.equal(fresh.statusCode, 200, 'the new token authenticates');
+
+    const stale = await app.inject({ method: 'GET', url: '/api/policy', headers: { authorization: `Bearer ${issuedToken}` } });
+    assert.equal(stale.statusCode, 401, 'the old token no longer authenticates');
+  });
+
+  test('regenerating an unknown or foreign device id is rejected', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/devices/d_not_yours/regenerate', headers: auth() });
+    assert.equal(res.statusCode, 404);
   });
 });
 
