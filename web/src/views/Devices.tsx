@@ -28,6 +28,22 @@ export function Devices({ children, refreshKey }: { children: Child[]; refreshKe
     }
   }
 
+  async function remove(id: string, name: string) {
+    if (!window.confirm(`Remove ${name}? Its key stops working immediately, and its alerts, events, and check-in history are deleted. This can't be undone.`)) {
+      return;
+    }
+    setBusyId(id);
+    setKeyError(null);
+    try {
+      await api.removeDevice(id);
+      setNonce((n) => n + 1);
+    } catch (err) {
+      setKeyError((err as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (loading) return <p className="loading">Loading devices…</p>;
   return (
     <>
@@ -54,12 +70,16 @@ export function Devices({ children, refreshKey }: { children: Child[]; refreshKe
                   <td><span className="mono">{d.agentVersion}</span></td>
                   <td>{d.browserCoverage}</td>
                   <td>{relativeTime(d.lastSeen)}</td>
-                  <td>
+                  <td style={{ display: 'flex', gap: '.4rem' }}>
                     <button
                       className="btn btn-ghost btn-sm" disabled={busyId === d.id}
                       onClick={() => getKey(d.id, d.name, alreadySetUp)}
                       title={alreadySetUp ? 'The device key is only shown once at creation. Getting a new one replaces it and disconnects this device until reinstalled.' : 'Show the device key again to finish installing.'}
                     >{alreadySetUp ? 'Replace key' : 'Get key'}</button>
+                    <button
+                      className="btn btn-ghost btn-sm" disabled={busyId === d.id}
+                      onClick={() => remove(d.id, d.name)}
+                    >Remove</button>
                   </td>
                 </tr>
               );

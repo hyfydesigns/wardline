@@ -237,6 +237,25 @@ export async function apiRoutes(app: FastifyInstance): Promise<void> {
     return { id: device.id, name: device.name, deviceToken };
   });
 
+  /**
+   * Remove a device. Its key stops authenticating immediately; a still-
+   * installed agent/extension just gets 401s from then on rather than being
+   * told to uninstall. Events and alerts it produced are cascade-deleted
+   * (ON DELETE CASCADE); screen-time/usage are per-child aggregates, not
+   * per-device, so they're unaffected.
+   */
+  app.delete('/api/devices/:id', async (req, reply) => {
+    const householdId = req.householdId;
+    const { id } = req.params as { id: string };
+    const device = db
+      .prepare(`SELECT d.id FROM devices d JOIN children c ON c.id = d.child_id WHERE d.id = ? AND c.household_id = ?`)
+      .get(id, householdId);
+    if (!device) return reply.code(404).send({ error: 'Device not found.' });
+
+    db.prepare(`DELETE FROM devices WHERE id = ?`).run(id);
+    return { ok: true };
+  });
+
   /** Household schedule blocks. */
   app.get('/api/schedules', async (req) => {
     const householdId = req.householdId;

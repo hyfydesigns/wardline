@@ -345,6 +345,41 @@ describe('device enrolment', () => {
     const res = await app.inject({ method: 'POST', url: '/api/devices/d_not_yours/regenerate', headers: auth() });
     assert.equal(res.statusCode, 404);
   });
+
+  test('removing a device deletes it, its key, and its alerts', async () => {
+    const children = (await app.inject({ method: 'GET', url: '/api/children', headers: auth() })).json();
+    const created = await app.inject({
+      method: 'POST', url: '/api/devices', headers: auth(),
+      payload: { childId: children[0].id, name: 'Temp-Delete-PC' },
+    });
+    const { id, deviceToken } = created.json();
+
+    const push = await app.inject({
+      method: 'POST', url: '/api/ingest', headers: { authorization: `Bearer ${deviceToken}` },
+      payload: { events: [evt({ text: "how old are you? don't tell your mom, our secret" })] },
+    });
+    assert.equal(push.statusCode, 200);
+
+    const before = (await app.inject({ method: 'GET', url: '/api/alerts', headers: auth() })).json();
+    assert.ok(before.alerts.some((a: { deviceName: string }) => a.deviceName === 'Temp-Delete-PC'), 'alert recorded before deletion');
+
+    const del = await app.inject({ method: 'DELETE', url: `/api/devices/${id}`, headers: auth() });
+    assert.equal(del.statusCode, 200);
+
+    const list = (await app.inject({ method: 'GET', url: '/api/devices', headers: auth() })).json();
+    assert.ok(!list.some((d: { id: string }) => d.id === id), 'device gone from the list');
+
+    const revoked = await app.inject({ method: 'GET', url: '/api/policy', headers: { authorization: `Bearer ${deviceToken}` } });
+    assert.equal(revoked.statusCode, 401, "the deleted device's key no longer authenticates");
+
+    const after = (await app.inject({ method: 'GET', url: '/api/alerts', headers: auth() })).json();
+    assert.ok(!after.alerts.some((a: { deviceName: string }) => a.deviceName === 'Temp-Delete-PC'), 'its alert is gone too');
+  });
+
+  test('removing an unknown or foreign device id is rejected', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/api/devices/d_not_yours', headers: auth() });
+    assert.equal(res.statusCode, 404);
+  });
 });
 
 describe('policy downlink', () => {

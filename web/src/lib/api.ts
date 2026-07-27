@@ -177,6 +177,7 @@ export const api = {
     }),
   regenerateDeviceKey: (id: string) =>
     request<{ id: string; name: string; deviceToken: string }>(`/api/devices/${id}/regenerate`, { method: 'POST' }),
+  removeDevice: (id: string) => request<{ ok: true }>(`/api/devices/${id}`, { method: 'DELETE' }),
   schedules: () => request<Schedule[]>('/api/schedules'),
   getSettings: () => request<Settings>('/api/settings'),
   saveSettings: (patch: Partial<Settings>) => request<Settings>('/api/settings', { method: 'PUT', body: JSON.stringify(patch) }),
