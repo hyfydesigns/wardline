@@ -103,7 +103,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(apiUrl(path), {
     ...options,
     headers: {
-      'content-type': 'application/json',
+      // Fastify's JSON body parser rejects a JSON content-type paired with an
+      // empty body (400), so only send it when there's actually a body.
+      ...(options.body ? { 'content-type': 'application/json' } : {}),
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(options.headers ?? {}),
     },
