@@ -111,14 +111,22 @@ function AddDevice({ childrenList, onAdded }: { childrenList: Child[]; onAdded: 
           <p style={{ marginBottom: '.6rem' }}>
             <a href={INSTALLER_DOWNLOAD_URL} className="btn btn-primary btn-sm">Download WardlineSetup.exe</a>
           </p>
+
+          <span style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, marginBottom: '.3rem' }}>Device key</span>
           <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', background: 'var(--surface-sunken)', padding: '.6rem .7rem', borderRadius: 6 }}>
-            <code style={{ flex: 1, fontSize: '.75rem', wordBreak: 'break-all' }}>{installCmd}</code>
+            <code style={{ flex: 1, fontSize: '.85rem' }}>{issued.deviceToken}</code>
             <button
               className="btn btn-ghost btn-sm"
-              onClick={() => { void navigator.clipboard?.writeText(installCmd); setCopied(true); }}
+              onClick={() => { void navigator.clipboard?.writeText(issued.deviceToken); setCopied(true); }}
             >{copied ? 'Copied' : 'Copy'}</button>
           </div>
-          <p style={{ fontSize: '.78rem', color: 'var(--muted)', marginTop: '.6rem' }}>
+          <p style={{ fontSize: '.78rem', color: 'var(--muted)', margin: '.5rem 0 .8rem' }}>
+            The installer asks for this on its first screen — paste it there. Or run it unattended with the
+            full command:
+          </p>
+          <code style={{ display: 'block', fontSize: '.75rem', wordBreak: 'break-all', color: 'var(--muted)' }}>{installCmd}</code>
+
+          <p style={{ fontSize: '.78rem', color: 'var(--muted)', marginTop: '.8rem' }}>
             Keep this key private — it lets a device report as {issued.name}. It won't be shown again.
           </p>
           <button className="btn btn-ghost btn-sm" style={{ marginTop: '.7rem' }} onClick={() => { setIssued(null); setOpen(false); }}>Done</button>
