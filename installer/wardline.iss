@@ -12,11 +12,11 @@
 
 #define AppName        "Wardline"
 #define AppPublisher   "Wardline"
-#define AppVersion     "1.0.0"
+#define AppVersion     "1.0.1"
 #define AgentExe       "wardline-agent.exe"
 #define ServiceName    "WardlineAgent"
 #define ServiceDisplay "Wardline Monitor Agent"
-#define DefaultApiUrl  "http://127.0.0.1:4000"
+#define DefaultApiUrl  "https://api.wardline.app"
 
 ; Replace with the ID assigned when the extension is published to the stores.
 ; Until then the extension must be loaded manually (see README).
