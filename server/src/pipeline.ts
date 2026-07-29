@@ -131,12 +131,18 @@ export interface IngestResult {
  * create alerts (idempotent on eventId), and push new alerts to live
  * dashboards.
  */
-export async function processIngest(ctx: DeviceContext, events: IngestEvent[]): Promise<IngestResult> {
+export async function processIngest(ctx: DeviceContext, events: IngestEvent[], agentVersion?: string): Promise<IngestResult> {
   const classifier = classifierFor(SENSITIVITY_THRESHOLDS[ctx.sensitivity]);
   const now = new Date().toISOString();
   let alerts = 0;
 
   db.prepare(`UPDATE devices SET last_seen = ? WHERE id = ?`).run(now, ctx.deviceId);
+  // The Windows agent reports its own version on every check-in; the browser
+  // extension doesn't, so this only ever moves off "not yet installed" once
+  // the .NET agent (not just the extension) has actually connected.
+  if (agentVersion) {
+    db.prepare(`UPDATE devices SET agent_version = ? WHERE id = ?`).run(`v${agentVersion}`, ctx.deviceId);
+  }
 
   const insertEvent = db.prepare(
     `INSERT OR IGNORE INTO events (id, device_id, occurred_at, source, kind, host)

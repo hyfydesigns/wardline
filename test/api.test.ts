@@ -301,9 +301,20 @@ describe('device enrolment', () => {
     assert.equal(push.statusCode, 200, 'new token authenticates for ingest');
   });
 
-  test('appears in the device list', async () => {
-    const list = (await app.inject({ method: 'GET', url: '/api/devices', headers: auth() })).json();
-    assert.ok(list.some((d: { name: string }) => d.name === 'Marcus-Laptop'));
+  test('appears in the device list as "not yet installed" until the agent reports a version', async () => {
+    const before = (await app.inject({ method: 'GET', url: '/api/devices', headers: auth() })).json();
+    const entry = before.find((d: { name: string }) => d.name === 'Marcus-Laptop');
+    assert.ok(entry);
+    assert.equal(entry.agentVersion, 'not yet installed', 'unchanged by the plain usage ingest above, which sent no agentVersion');
+
+    const push = await app.inject({
+      method: 'POST', url: '/api/ingest', headers: { authorization: `Bearer ${issuedToken}` },
+      payload: { events: [evt({ kind: 'usage', category: 'Homework', minutes: 1 })], agentVersion: '1.0.1' },
+    });
+    assert.equal(push.statusCode, 200);
+
+    const after = (await app.inject({ method: 'GET', url: '/api/devices', headers: auth() })).json();
+    assert.equal(after.find((d: { name: string }) => d.name === 'Marcus-Laptop').agentVersion, 'v1.0.1');
   });
 
   test('rejects a duplicate name, bad name, or unknown child', async () => {

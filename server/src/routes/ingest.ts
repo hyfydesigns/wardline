@@ -13,11 +13,11 @@ export async function ingestRoutes(app: FastifyInstance): Promise<void> {
     const ctx = token ? resolveDevice(token) : null;
     if (!ctx) return reply.code(401).send({ error: 'Invalid or missing device token.' });
 
-    const body = (req.body ?? {}) as { events?: IngestEvent[] };
+    const body = (req.body ?? {}) as { events?: IngestEvent[]; agentVersion?: string };
     if (!Array.isArray(body.events)) {
       return reply.code(400).send({ error: 'Body must include an events array.' });
     }
-    const result = await processIngest(ctx, body.events);
+    const result = await processIngest(ctx, body.events, body.agentVersion);
     return { ok: true, ...result };
   });
 }

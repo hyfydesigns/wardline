@@ -25,6 +25,11 @@ public sealed class AgentEvent
 /// </summary>
 public sealed class IngestClient(IHttpClientFactory httpFactory, IOptions<AgentOptions> options, ILogger<IngestClient> logger)
 {
+    /// <summary>Reported to the server on every ingest so the dashboard can show
+    /// something truer than the "not yet installed" placeholder it starts with.
+    /// Keep in sync with AppVersion in installer/wardline.iss.</summary>
+    private const string AgentVersion = "1.0.1";
+
     private readonly AgentOptions _opts = options.Value;
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
@@ -38,7 +43,7 @@ public sealed class IngestClient(IHttpClientFactory httpFactory, IOptions<AgentO
 
         try
         {
-            using var res = await client.PostAsJsonAsync("/api/ingest", new { events }, JsonOpts, ct);
+            using var res = await client.PostAsJsonAsync("/api/ingest", new { events, agentVersion = AgentVersion }, JsonOpts, ct);
             if (!res.IsSuccessStatusCode)
             {
                 logger.LogWarning("Ingest returned {Status}", (int)res.StatusCode);
