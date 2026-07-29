@@ -318,7 +318,11 @@ until a code-signing cert is added to the `Signing` step.
    WardlineSetup.exe /DeviceToken=wl-xxxxxxxx
    ```
 
-   Run it with no arguments and it asks for the key on a wizard page instead.
+   Run it with no arguments and it asks for the key on a wizard page instead —
+   that page has a **Test Connection** button, which calls the same
+   device-identity check the real agent will (`GET /api/devices/whoami`) before
+   you commit to anything, so a wrong or stale key is caught on the spot
+   instead of surfacing days later as a silent "offline."
 
 That single elevated run installs the agent to Program Files, registers it as an
 auto-starting service with restart-on-failure recovery, writes its config with

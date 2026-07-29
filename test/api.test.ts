@@ -393,6 +393,24 @@ describe('device enrolment', () => {
   });
 });
 
+describe('device identity check (installer "Test Connection")', () => {
+  test('rejects a missing or unknown token', async () => {
+    const missing = await app.inject({ method: 'GET', url: '/api/devices/whoami' });
+    assert.equal(missing.statusCode, 401);
+
+    const unknown = await app.inject({ method: 'GET', url: '/api/devices/whoami', headers: { authorization: 'Bearer wl-not-a-real-token' } });
+    assert.equal(unknown.statusCode, 401);
+  });
+
+  test('confirms device + child identity for a valid token', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/devices/whoami', headers: device() });
+    assert.equal(res.statusCode, 200);
+    const body = res.json();
+    assert.equal(body.deviceName, 'Marcus-PC');
+    assert.equal(body.childName, 'Marcus');
+  });
+});
+
 describe('policy downlink', () => {
   test('requires a device token', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/policy' });

@@ -4,7 +4,10 @@
 ; Run  :  WardlineSetup.exe /DeviceToken=wl-xxxx [/ApiUrl=https://api.example.com]
 ;
 ; With no /DeviceToken the installer asks for the device key on a wizard page,
-; so a parent can paste the value the dashboard gave them.
+; so a parent can paste the value the dashboard gave them. That page has a
+; "Test Connection" button — it calls GET /api/devices/whoami with the typed
+; key before the parent commits to anything, so a wrong or stale key is
+; caught immediately instead of surfacing days later as "offline" with no clue why.
 ;
 ; One elevated run does everything: installs the agent, registers it as an
 ; auto-starting service with restart-on-failure, and deploys the browser
@@ -94,6 +97,9 @@ Filename: "{sys}\sc.exe"; Parameters: "delete {#ServiceName}"; Flags: runhidden 
 [Code]
 var
   TokenPage: TInputQueryWizardPage;
+  TestButton: TNewButton;
+  TestResultLabel: TNewStaticText;
+  ConnectionVerified: Boolean;
 
 function HasExtensionId: Boolean;
 begin
@@ -119,6 +125,88 @@ begin
   Result := Trim(ParamValue('ApiUrl', '{#DefaultApiUrl}'));
 end;
 
+{ Pull a top-level "key":"value" string out of a small, known-shape JSON
+  response. Not a general parser — fine here because /api/devices/whoami's
+  name fields are server-validated to [\w .-] and can never contain a quote. }
+function ExtractJsonString(const Json, Key: String): String;
+var
+  P, P2: Integer;
+  Pattern: String;
+begin
+  Result := '';
+  Pattern := '"' + Key + '":"';
+  P := Pos(Pattern, Json);
+  if P = 0 then Exit;
+  P := P + Length(Pattern);
+  P2 := Pos('"', Copy(Json, P, MaxInt));
+  if P2 = 0 then Exit;
+  Result := Copy(Json, P, P2 - 1);
+end;
+
+{ Calls GET /api/devices/whoami with whatever key is currently in the box.
+  This is the exact same request the real agent will make once installed, so
+  a pass here means the parent's setup will actually work — not a guess. }
+procedure TestButtonClick(Sender: TObject);
+var
+  Http: Variant;
+  DeviceToken, ApiUrl: String;
+begin
+  DeviceToken := Trim(TokenPage.Values[0]);
+  if DeviceToken = '' then
+  begin
+    TestResultLabel.Font.Color := clRed;
+    TestResultLabel.Caption := 'Enter a device key first.';
+    Exit;
+  end;
+
+  ApiUrl := GetApiUrl('');
+  TestButton.Enabled := False;
+  WizardForm.Cursor := crHourGlass;
+  try
+    try
+      Http := CreateOleObject('WinHttp.WinHttpRequest.5.1');
+      Http.Open('GET', ApiUrl + '/api/devices/whoami', False);
+      Http.SetRequestHeader('Authorization', 'Bearer ' + DeviceToken);
+      Http.SetTimeouts(5000, 5000, 8000, 8000);
+      Http.Send('');
+
+      if Http.Status = 200 then
+      begin
+        ConnectionVerified := True;
+        TestResultLabel.Font.Color := clGreen;
+        TestResultLabel.Caption := '✓ Connected as "' + ExtractJsonString(Http.ResponseText, 'deviceName') + '"';
+      end
+      else if Http.Status = 401 then
+      begin
+        ConnectionVerified := False;
+        TestResultLabel.Font.Color := clRed;
+        TestResultLabel.Caption := 'That key wasn''t recognized. Check the Devices screen for the current one.';
+      end
+      else
+      begin
+        ConnectionVerified := False;
+        TestResultLabel.Font.Color := clRed;
+        TestResultLabel.Caption := 'Server error (status ' + IntToStr(Http.Status) + '). Try again in a moment.';
+      end;
+    except
+      ConnectionVerified := False;
+      TestResultLabel.Font.Color := clRed;
+      TestResultLabel.Caption := 'Couldn''t reach ' + ApiUrl + '. Check the internet connection on this PC.';
+    end;
+  finally
+    TestButton.Enabled := True;
+    WizardForm.Cursor := crDefault;
+  end;
+end;
+
+{ Typing invalidates whatever the last test said, so a stale ✓ can't linger
+  next to a key that's since changed. }
+procedure DeviceKeyChanged(Sender: TObject);
+begin
+  ConnectionVerified := False;
+  TestResultLabel.Caption := '';
+end;
+
 procedure InitializeWizard;
 begin
   { Only ask when the key wasn't supplied on the command line. }
@@ -127,8 +215,28 @@ begin
     TokenPage := CreateInputQueryPage(wpWelcome,
       'Device key',
       'Connect this PC to your Wardline account',
-      'In Wardline, open Devices and choose "Add a device". Paste the device key it shows below.');
+      'In Wardline, open Devices and choose "Add a device". Paste the device key it shows below, then ' +
+        'test it before continuing.');
     TokenPage.Add('Device key:', False);
+    TokenPage.Edits[0].OnChange := @DeviceKeyChanged;
+
+    TestButton := TNewButton.Create(TokenPage);
+    TestButton.Parent := TokenPage.Surface;
+    TestButton.Caption := 'Test Connection';
+    TestButton.Left := 0;
+    TestButton.Top := TokenPage.Edits[0].Top + TokenPage.Edits[0].Height + 16;
+    TestButton.Width := 120;
+    TestButton.Height := 23;
+    TestButton.OnClick := @TestButtonClick;
+
+    TestResultLabel := TNewStaticText.Create(TokenPage);
+    TestResultLabel.Parent := TokenPage.Surface;
+    TestResultLabel.Left := TestButton.Left + TestButton.Width + 12;
+    TestResultLabel.Top := TestButton.Top + 4;
+    TestResultLabel.Width := TokenPage.SurfaceWidth - TestButton.Width - 12;
+    TestResultLabel.AutoSize := False;
+    TestResultLabel.WordWrap := True;
+    TestResultLabel.Caption := '';
   end;
 end;
 
@@ -141,7 +249,10 @@ begin
     begin
       MsgBox('Enter the device key from your Wardline dashboard to continue.', mbError, MB_OK);
       Result := False;
+      Exit;
     end;
+    if not ConnectionVerified then
+      Result := MsgBox('You haven''t successfully tested this key yet. Continue anyway?', mbConfirmation, MB_YESNO) = IDYES;
   end;
 end;
 

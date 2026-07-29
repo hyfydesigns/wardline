@@ -12,6 +12,23 @@ import { computeActiveBlock, type Schedule } from '../policyLogic.js';
  * screen-time limit. The device doesn't reason about schedules; it trusts this.
  */
 export async function policyRoutes(app: FastifyInstance): Promise<void> {
+  /**
+   * Minimal identity check for a device token — used by the installer's
+   * "Test Connection" button to confirm the key actually works before the
+   * parent finishes setup, instead of finding out days later that it didn't.
+   */
+  app.get('/api/devices/whoami', async (req, reply) => {
+    const auth = req.headers.authorization ?? '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    const ctx = token ? resolveDevice(token) : null;
+    if (!ctx) return reply.code(401).send({ error: 'Invalid or missing device token.' });
+
+    const row = db
+      .prepare(`SELECT d.name AS deviceName, c.name AS childName FROM devices d JOIN children c ON c.id = d.child_id WHERE d.id = ?`)
+      .get(ctx.deviceId) as { deviceName: string; childName: string };
+    return row;
+  });
+
   app.get('/api/policy', async (req, reply) => {
     const auth = req.headers.authorization ?? '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
