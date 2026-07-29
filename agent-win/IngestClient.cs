@@ -27,8 +27,10 @@ public sealed class IngestClient(IHttpClientFactory httpFactory, IOptions<AgentO
 {
     /// <summary>Reported to the server on every ingest so the dashboard can show
     /// something truer than the "not yet installed" placeholder it starts with.
-    /// Keep in sync with AppVersion in installer/wardline.iss.</summary>
-    private const string AgentVersion = "1.0.1";
+    /// Read from the assembly's own version (set once, in the .csproj) rather
+    /// than a separate literal that can drift out of sync.</summary>
+    private static readonly string AgentVersion =
+        System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
 
     private readonly AgentOptions _opts = options.Value;
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);

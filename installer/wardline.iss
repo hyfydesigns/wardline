@@ -12,8 +12,11 @@
 
 #define AppName        "Wardline"
 #define AppPublisher   "Wardline"
-#define AppVersion     "1.0.1"
 #define AgentExe       "wardline-agent.exe"
+; Read straight off the published exe (built by tools\build-release.ps1 step 1
+; before this script runs) instead of a separate literal that drifts out of
+; sync with the .csproj's <Version> — that mismatch already shipped once.
+#define AppVersion     GetVersionNumbersString("..\dist\agent\" + AgentExe)
 #define ServiceName    "WardlineAgent"
 #define ServiceDisplay "Wardline Monitor Agent"
 #define DefaultApiUrl  "https://api.wardline.app"

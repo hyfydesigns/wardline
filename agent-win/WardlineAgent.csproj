@@ -10,6 +10,10 @@
     <!-- Windows-only: the agent uses the registry + Windows Service host. -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
+    <!-- Single source of truth for the agent's version: read at runtime (see
+         IngestClient) and by installer/wardline.iss (reads the published exe's
+         file version) — bump only here, nowhere else. -->
+    <Version>1.0.2</Version>
   </PropertyGroup>
 
   <!-- Never treat a publish output folder as project content: publishing into
